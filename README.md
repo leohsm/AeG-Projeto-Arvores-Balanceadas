@@ -1,7 +1,7 @@
 # Projeto Prático 1: Avaliação de Desempenho de Árvores Balanceadas em Bancos de Dados Chave-Valor (In-Memory Key-Value Store)
 
 **Instituição:** Universidade Tecnológica Federal do Paraná (UTFPR) – Câmpus Medianeira  
-**Departamento:** Departamento Acadêmico de Computação (DACOM-MD)  
+**Curso:** Ciência da Computação  
 **Disciplina:** Árvores e Grafos – Período Letivo 2026.2  
 **Equipe:** Erik Mazzuco, Letícia Moro, Leonardo Herrero  
 **Data Limite de Entrega no Moodle:** 22/09/2026  

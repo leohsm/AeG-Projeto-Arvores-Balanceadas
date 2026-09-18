@@ -36,7 +36,7 @@ class NumberedCanvas(canvas.Canvas):
         # Skip header and footer on page 1 (cover page)
         if self._pageNumber > 1:
             # Running Header at top (y = 808)
-            self.drawString(54, 808, "UTFPR – DACOM-MD | Árvores e Grafos – Projeto Prático 1: Árvores Balanceadas")
+            self.drawString(54, 808, "UTFPR – Ciência da Computação | Árvores e Grafos – Projeto Prático 1: Árvores Balanceadas")
             self.setStrokeColor(colors.HexColor("#B0BEC5"))
             self.setLineWidth(0.6)
             self.line(54, 802, 541, 802)
@@ -210,7 +210,7 @@ def build_pdf_report(json_path: str = "results/benchmark_results.json",
     story.append(Paragraph("MINISTÉRIO DA EDUCAÇÃO", inst_style))
     story.append(Paragraph("UNIVERSIDADE TECNOLÓGICA FEDERAL DO PARANÁ – UTFPR", inst_style))
     story.append(Paragraph("CÂMPUS MEDIANEIRA", inst_style))
-    story.append(Paragraph("DEPARTAMENTO ACADÊMICO DE COMPUTAÇÃO – DACOM-MD", inst_style))
+    story.append(Paragraph("CURSO: CIÊNCIA DA COMPUTAÇÃO", inst_style))
     story.append(Paragraph("DISCIPLINA: ÁRVORES E GRAFOS", inst_style))
     story.append(Spacer(1, 35))
 

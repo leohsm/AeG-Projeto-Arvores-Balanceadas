@@ -2,7 +2,7 @@
 
 **Ministério da Educação**  
 **Universidade Tecnológica Federal do Paraná (UTFPR) – Câmpus Medianeira**  
-**Departamento Acadêmico de Computação (DACOM-MD)**  
+**Curso: Ciência da Computação**  
 **Disciplina:** Árvores e Grafos (Período Letivo 2026.2)  
 **Projeto Prático 1 – Árvores Balanceadas**  
 **Equipe:** Erik Mazzuco, Letícia Moro, Leonardo Herrero  
