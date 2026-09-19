@@ -124,7 +124,8 @@ def generate_all_plots(results_path: str = "results/benchmark_results.json", out
         if t == "Splay Tree":
             for idx_w, w in enumerate(workloads):
                 if w == "Insercao Sequencial":
-                    ax.annotate("50.000\n(espinha)",
+                    actual_height = lookup[(w, t)]["height"]
+                    ax.annotate(f"{actual_height:,}\n(espinha)".replace(",", "."),
                                 xy=(x[idx_w] + offset, 58),
                                 xytext=(0, 4), textcoords="offset points",
                                 ha='center', va='bottom', fontsize=8, fontweight='bold', color='#E63946')
@@ -137,7 +138,7 @@ def generate_all_plots(results_path: str = "results/benchmark_results.json", out
     ax.set_xticks(x)
     ax.set_xticklabels(workloads, fontsize=11, fontweight="bold")
     ax.set_ylabel("Altura da Árvore ao Final do Workload", fontsize=12, fontweight="bold")
-    ax.set_title("Eficiência de Balanceamento: Altura Final das Árvores (N = 50.000)", fontsize=15, fontweight="bold", pad=15)
+    ax.set_title("Eficiência de Balanceamento: Altura Final das Árvores", fontsize=15, fontweight="bold", pad=15)
     ax.legend(fontsize=10, loc="upper right")
     ax.grid(True, ls="--", alpha=0.6)
 
@@ -213,8 +214,9 @@ def generate_all_plots(results_path: str = "results/benchmark_results.json", out
     # -------------------------------------------------------------
     fig, ax = plt.subplots(figsize=(10, 5.5))
     tree_short = ["Splay", "BB[alpha]", "AA", "Scapegoat", "Zip", "WAVL"]
-    hot_depths = [6.40, 12.00, 10.90, 6.50, 7.60, 11.50]
-    cold_depths = [20.50, 11.10, 12.40, 12.70, 17.20, 11.10]
+    zipf_entries = [lookup.get(("Zipfiano (Hotset)", tree), {}) for tree in trees]
+    hot_depths = [entry.get("hot_average_depth", 0) for entry in zipf_entries]
+    cold_depths = [entry.get("cold_average_depth", 0) for entry in zipf_entries]
 
     x = np.arange(len(tree_short))
     width = 0.35

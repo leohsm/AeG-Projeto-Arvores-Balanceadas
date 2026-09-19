@@ -72,22 +72,30 @@ AeG/
 
 ## 🚀 Como Executar
 
-### 1. Executar os Testes Unitários e Validação de Invariantes
+### 1. Instalar as Dependências
 ```powershell
-python tests/test_trees.py
+python -m pip install -r requirements.txt
 ```
 
-### 2. Executar o Benchmark Completo (50.000 Operações)
+### 2. Executar os Testes Unitários e Validação de Invariantes
+```powershell
+python -m unittest discover -s tests -v
+```
+
+### 3. Executar o Benchmark Completo (50.000 Operações)
 ```powershell
 python benchmark.py 50000
 ```
 
-### 3. Gerar os Gráficos Comparativos
+O benchmark compara o estado final de cada árvore com um `dict` de referência e
+interrompe a execução se detectar divergência de chaves ou valores.
+
+### 4. Gerar os Gráficos Comparativos
 ```powershell
 python generate_plots.py
 ```
 
-### 4. Compilar o Relatório Oficial em PDF
+### 5. Compilar o Relatório Oficial em PDF
 ```powershell
 python generate_report_pdf.py
 ```

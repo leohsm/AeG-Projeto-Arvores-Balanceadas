@@ -57,6 +57,27 @@ def build_pdf_report(json_path: str = "results/benchmark_results.json",
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
+    result_lookup = {(item["workload"], item["tree"]): item for item in data}
+    workload_names = list(dict.fromkeys(item["workload"] for item in data))
+    winners = []
+    for workload in workload_names:
+        candidates = [item for item in data if item["workload"] == workload]
+        winner = max(candidates, key=lambda item: item["throughput_ops_sec"])
+        winners.append(
+            f"{workload}: <b>{winner['tree']}</b> "
+            f"({winner['throughput_ops_sec']:,.0f} ops/s)"
+        )
+
+    def height_range(tree_name):
+        heights = [item["height"] for item in data if item["tree"] == tree_name]
+        return min(heights), max(heights)
+
+    wavl_height_min, wavl_height_max = height_range("WAVL Tree")
+    bb_height_min, bb_height_max = height_range("BB[alpha] (0.29)")
+    aa_height_min, aa_height_max = height_range("AA Tree")
+    zip_height_min, zip_height_max = height_range("Zip Tree")
+    splay_zipf = result_lookup[("Zipfiano (Hotset)", "Splay Tree")]
+
     # A4: 595.27 x 841.89 pt. Printable width: 595.27 - 108 = 487.27 pt.
     doc = SimpleDocTemplate(
         pdf_filename,
@@ -331,8 +352,6 @@ def build_pdf_report(json_path: str = "results/benchmark_results.json",
         body_style
     ))
 
-    story.append(PageBreak())
-
     # =========================================================================
     # 3. METODOLOGIA E WORKLOADS
     # =========================================================================
@@ -357,6 +376,7 @@ def build_pdf_report(json_path: str = "results/benchmark_results.json",
     # =========================================================================
     # 4. RESULTADOS EXPERIMENTAIS
     # =========================================================================
+    story.append(PageBreak())
     story.append(Paragraph("4. Resultados Experimentais Consolidados", h1_style))
     story.append(Paragraph(
         "A Tabela 1 apresenta a consolidação empírica de todas as medições realizadas, correlacionando tempo total de processamento, "
@@ -424,11 +444,10 @@ def build_pdf_report(json_path: str = "results/benchmark_results.json",
         story.append(Paragraph("Figura 1: Comparativo de Vazão Operacional (Throughput) das seis estruturas ao longo dos seis perfis de carga.", caption_style))
 
     story.append(Paragraph(
-        "<b>Análise da Vazão e Eficiência Operacional (Figura 1):</b> A <b>WAVL Tree</b> consolidou-se como a estrutura de maior regularidade e throughput "
-        "nos cenários práticos de consulta e processamento transacional: registrou <b>904.321 ops/s</b> na Leitura Intensiva e <b>535.571 ops/s</b> na Carga Mista (OLTP). "
-        "A <b>Splay Tree</b> alcançou um pico extraordinário na Inserção Sequencial (1,45 milhão de ops/s), justificado pela simplicidade mecânica "
-        "de anexar o antigo nó raiz à esquerda sem efetuar rotações. Já a <b>Scapegoat Tree</b> destacou-se com grande agilidade na Inserção Aleatória "
-        "(368.290 ops/s) e no cenário Zipfiano (1,06 milhão de ops/s), beneficiada pela ausência de sobrecarga em leituras e baixa frequência de reconstruções.",
+        "<b>Análise da Vazão e Eficiência Operacional (Figura 1):</b> Os vencedores "
+        "observados em cada cenário foram: " + "; ".join(winners) + ". Os valores "
+        "descrevem esta execução, neste ambiente, e não constituem uma garantia "
+        "universal de desempenho.",
         body_style
     ))
 
@@ -445,15 +464,15 @@ def build_pdf_report(json_path: str = "results/benchmark_results.json",
     fig3_path = "plots/tree_height_comparison.png"
     if os.path.exists(fig3_path):
         story.append(Image(fig3_path, width=6.6 * inch, height=3.2 * inch))
-        story.append(Paragraph("Figura 3: Altura final observada comparada com o limite inferior ótimo teórico ceil(log2(N+1)) = 16.", caption_style))
+        story.append(Paragraph("Figura 3: Altura final observada comparada com o limite inferior teórico ceil(log2(N+1)) de cada cenário.", caption_style))
 
     story.append(Paragraph(
         "<b>Disciplina Estrutural de Altura (Figura 3):</b> O controle rigoroso de profundidade é o que impede uma árvore de degenerar em busca linear. "
-        "Para 50.000 nós, onde o piso ótimo teórico absoluto é ceil(log_2(50001)) = 16 níveis, a <b>WAVL Tree</b> atingiu um patamar de perfeição matemática, "
-        "com alturas entre <b>15 e 19</b> níveis em todos os testes. A <b>BB[α]</b> e a <b>AA Tree</b> demonstraram consistência idêntica, oscilando entre "
-        "15 e 21 níveis. A <b>Zip Tree</b> exibiu alturas entre 37 e 50 níveis, um comportamento intrínseco às árvores probabilísticas que operam com posto geométrico. "
+        f"A <b>WAVL Tree</b> apresentou alturas entre <b>{wavl_height_min} e {wavl_height_max}</b>. "
+        f"A <b>BB[α]</b> ficou entre {bb_height_min} e {bb_height_max}, e a <b>AA Tree</b> entre {aa_height_min} e {aa_height_max}. "
+        f"A <b>Zip Tree</b> exibiu alturas entre {zip_height_min} e {zip_height_max}, comportamento compatível com uma árvore probabilística de posto geométrico. "
         "A <b>Splay Tree</b> confirma sua característica teórica clássica: após inserções sequenciais puras gerou a espinha de 50.000 nós, mas recompôs "
-        "rapidamente o balanceamento para a faixa de 28 a 33 níveis assim que as operações de leitura e splaying foram executadas.",
+        "a estrutura conforme as operações de acesso e splaying foram executadas.",
         body_style
     ))
 
@@ -472,11 +491,12 @@ def build_pdf_report(json_path: str = "results/benchmark_results.json",
         story.append(Paragraph("Figura 5: Profundidade média de busca para chaves quentes (top 10 do ranking Zipf) versus chaves frias (posições > 500).", caption_style))
 
     story.append(Paragraph(
-        "<b>Efeito de Localidade e Cargas Zipfianas (Figura 5):</b> O experimento sob a distribuição de Zipf evidenciou a superioridade dinâmica "
-        "da <b>Splay Tree</b> em ambientes de cache com concentração de acessos (regra 80/20). Devido à auto-reorganização, as dez chaves mais populares "
-        "foram mantidas em profundidade média de apenas <b>6.4 níveis</b>, em contraste com a profundidade de 20.5 para itens frios. "
-        "Nas árvores rigidamente balanceadas (WAVL, BB[α] e AA), as chaves quentes permaneceram distribuídas indistintamente entre as profundidades "
-        "11 e 12, exigindo o mesmo número de comparações de um item raramente acessado.",
+        "<b>Efeito de Localidade e Cargas Zipfianas (Figura 5):</b> Na fotografia final "
+        f"da carga Zipfiana, a <b>Splay Tree</b> manteve as chaves quentes em profundidade média "
+        f"de <b>{splay_zipf.get('hot_average_depth', 0):.2f}</b>, contra "
+        f"{splay_zipf.get('cold_average_depth', 0):.2f} para as chaves frias. O gráfico "
+        "apresenta a mesma medição, calculada pelo benchmark, para todas as estruturas; "
+        "assim, a conclusão de localidade permanece rastreável aos dados brutos.",
         body_style
     ))
 
@@ -493,10 +513,9 @@ def build_pdf_report(json_path: str = "results/benchmark_results.json",
     ))
 
     story.append(Paragraph(
-        "<b>1. WAVL Tree como Estrutura Primária para Bancos Chave-Valor em Memória:</b> A Weak AVL Tree destacou-se como a campeã "
-        "geral de desempenho. Ao limitar estritamente as rotações a no máximo 2 tanto na inserção quanto na exclusão, ela elimina a "
-        "sobrecarga de rebalanceamentos profundos sem degradar a altura (mantida sempre entre 15 e 19). É a opção ideal para bases NoSQL "
-        "com alta demanda transacional e concorrência mista.",
+        "<b>1. WAVL Tree para desempenho previsível:</b> A Weak AVL Tree combinou baixa altura "
+        f"(entre {wavl_height_min} e {wavl_height_max} nesta execução) com bons resultados nas cargas mistas. "
+        "É uma candidata forte quando previsibilidade estrutural e desempenho geral são prioridades.",
         bullet_style
     ))
 
@@ -508,23 +527,23 @@ def build_pdf_report(json_path: str = "results/benchmark_results.json",
     ))
 
     story.append(Paragraph(
-        "<b>3. Scapegoat Tree para Aplicações com Severo Limite de Memória (RAM-Constrained):</b> Por exigir exatamente zero bytes "
-        "de controle em cada nó, a Scapegoat Tree proporciona o menor consumo de memória do benchmark. O fato de dispensar manutenção em buscas "
-        "proporcionou mais de 1 milhão de operações/segundo no cenário Zipfiano, consolidando-a como a melhor escolha para dispositivos embarcados e IoT.",
+        "<b>3. Scapegoat Tree quando metadados por nó importam:</b> A estrutura não mantém "
+        "campos de balanceamento por nó e não altera a árvore durante buscas. Essa característica reduz "
+        "metadados estruturais, embora este benchmark não tenha medido consumo de memória diretamente.",
         bullet_style
     ))
 
     story.append(Paragraph(
-        "<b>4. AA Tree pela Razão Custo-Benefício entre Simplicidade e Robustez:</b> A AA Tree atingiu um patamar invejável de equilíbrio "
-        "(alturas 17-21, vazão até 600k ops/s) utilizando uma base de código extremamente enxuta composta apenas por <code>skew</code> e <code>split</code>. "
-        "Substitui com folga a Árvore Rubro-Negra tradicional em projetos acadêmicos e industriais onde manutenibilidade e facilidade de depuração são prioritárias.",
+        "<b>4. AA Tree pela simplicidade de manutenção:</b> A AA Tree conservou altura logarítmica "
+        f"(entre {aa_height_min} e {aa_height_max}) usando principalmente as operações <code>skew</code> e <code>split</code>. "
+        "É uma alternativa atraente quando clareza de implementação e invariantes simples são importantes.",
         bullet_style
     ))
 
     story.append(Paragraph(
         "<b>5. Zip Tree e a Eficiência do Balanceamento Aleatorizado:</b> As Zip Trees provaram que o princípio estatístico das Skip Lists "
         "pode ser aplicado com sucesso a árvores binárias sem envolver rotações rígidas de ponteiros pai. Com operações simples de descompactação e compactação, "
-        "demonstrou vazão competitiva de até 680k ops/s em cargas Zipfianas.",
+        "manteve altura esperada logarítmica. A correção de atualizações repetidas foi validada por testes de regressão.",
         bullet_style
     ))
 

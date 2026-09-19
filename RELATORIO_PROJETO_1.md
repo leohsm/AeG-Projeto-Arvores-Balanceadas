@@ -1,5 +1,9 @@
 # Relatório de Avaliação de Desempenho de Árvores Balanceadas em Bancos de Dados Chave-Valor (In-Memory Key-Value Store)
 
+> **Aviso:** este arquivo Markdown é uma versão histórica do texto. O relatório
+> atualizado e validado para entrega é `RELATORIO_PROJETO_1.pdf`, gerado por
+> `generate_report_pdf.py` a partir de `results/benchmark_results.json`.
+
 **Ministério da Educação**  
 **Universidade Tecnológica Federal do Paraná (UTFPR) – Câmpus Medianeira**  
 **Curso: Ciência da Computação**  

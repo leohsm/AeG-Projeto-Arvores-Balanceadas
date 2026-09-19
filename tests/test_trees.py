@@ -9,6 +9,8 @@ from trees.aa_tree import AATree
 from trees.scapegoat_tree import ScapegoatTree
 from trees.zip_tree import ZipTree
 from trees.wavl_tree import WAVLTree
+from benchmark import expected_state, execute_ops, validate_final_state
+from workloads.generator import WorkloadGenerator
 
 
 class TestBalancedTrees(unittest.TestCase):
@@ -226,6 +228,40 @@ class TestBalancedTrees(unittest.TestCase):
             self.assertEqual(node.weight, expected)
             return expected
         _check_bb(bb.root)
+
+    def test_repeated_updates_do_not_create_duplicate_keys(self):
+        """Regression test for updates being inserted as duplicate Zip Tree nodes."""
+        for name, tree_ctor in self.get_tree_classes():
+            with self.subTest(tree=name):
+                tree = tree_ctor()
+                for key in range(200):
+                    tree.put(key, f"initial_{key}")
+                for round_number in range(10):
+                    for key in range(200):
+                        tree.put(key, f"round_{round_number}_{key}")
+
+                self.assertEqual(tree.size(), 200)
+                self.assertEqual(tree.inorder_keys(), list(range(200)))
+                for key in range(200):
+                    self.assertEqual(tree.get(key), f"round_9_{key}")
+
+    def test_generated_workloads_match_reference_dictionary(self):
+        """Every implementation must finish a workload with the same key set."""
+        generator = WorkloadGenerator(seed=42)
+        workloads = [
+            generator.mixed_oltp(1000),
+            generator.read_intensive(1000),
+            generator.write_intensive(1000),
+            generator.zipfian_hotset(1000, pool_size=200),
+        ]
+        for pre_ops, main_ops in workloads:
+            reference = expected_state(pre_ops, main_ops)
+            for name, tree_ctor in self.get_tree_classes():
+                with self.subTest(tree=name):
+                    tree = tree_ctor()
+                    execute_ops(tree, pre_ops)
+                    execute_ops(tree, main_ops)
+                    validate_final_state(tree, reference)
 
 
 if __name__ == "__main__":

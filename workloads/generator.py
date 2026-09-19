@@ -1,6 +1,32 @@
 import random
-from typing import List, Tuple, Any, Optional
-import numpy as np
+from bisect import bisect_left
+from typing import List, Tuple
+
+
+class _RandomKeyPool:
+    """Set-like pool with O(1) random choice, insertion, and removal."""
+
+    def __init__(self, keys=()):
+        self._keys = list(keys)
+        self._positions = {key: index for index, key in enumerate(self._keys)}
+
+    def __bool__(self) -> bool:
+        return bool(self._keys)
+
+    def add(self, key: int) -> None:
+        if key not in self._positions:
+            self._positions[key] = len(self._keys)
+            self._keys.append(key)
+
+    def choice(self, rng: random.Random) -> int:
+        return self._keys[rng.randrange(len(self._keys))]
+
+    def remove(self, key: int) -> None:
+        index = self._positions.pop(key)
+        last = self._keys.pop()
+        if index < len(self._keys):
+            self._keys[index] = last
+            self._positions[last] = index
 
 
 class WorkloadGenerator:
@@ -12,7 +38,6 @@ class WorkloadGenerator:
     def __init__(self, seed: int = 42):
         self.seed = seed
         self.rng = random.Random(seed)
-        self.np_rng = np.random.default_rng(seed)
 
     def sequential_insert(self, n: int) -> List[Tuple[str, int, str]]:
         """
@@ -42,7 +67,7 @@ class WorkloadGenerator:
         self.rng.shuffle(init_keys)
         pre_ops = [("PUT", k, f"val_{k}") for k in init_keys]
 
-        active_keys = set(init_keys)
+        active_keys = _RandomKeyPool(init_keys)
         next_new_key = init_count
         workload_ops: List[Tuple[str, int, str]] = []
 
@@ -51,7 +76,7 @@ class WorkloadGenerator:
             if roll < 0.50:  # 50% PUT
                 # either update existing or insert new
                 if active_keys and self.rng.random() < 0.4:
-                    k = self.rng.choice(list(active_keys))
+                    k = active_keys.choice(self.rng)
                 else:
                     k = next_new_key
                     next_new_key += 1
@@ -59,13 +84,13 @@ class WorkloadGenerator:
                 workload_ops.append(("PUT", k, f"val_{k}"))
             elif roll < 0.90:  # 40% GET
                 if active_keys and self.rng.random() < 0.85:
-                    k = self.rng.choice(list(active_keys))
+                    k = active_keys.choice(self.rng)
                 else:
                     k = self.rng.randint(0, next_new_key + 100)
                 workload_ops.append(("GET", k, ""))
             else:  # 10% DELETE
                 if active_keys:
-                    k = self.rng.choice(list(active_keys))
+                    k = active_keys.choice(self.rng)
                     active_keys.remove(k)
                     workload_ops.append(("DELETE", k, ""))
                 else:
@@ -87,7 +112,7 @@ class WorkloadGenerator:
         self.rng.shuffle(keys)
         pre_ops = [("PUT", k, f"val_{k}") for k in keys]
 
-        active_keys = set(keys)
+        active_keys = _RandomKeyPool(keys)
         next_new_key = preload_count
         workload_ops: List[Tuple[str, int, str]] = []
 
@@ -95,7 +120,7 @@ class WorkloadGenerator:
             roll = self.rng.random()
             if roll < 0.90:  # 90% GET
                 if active_keys and self.rng.random() < 0.95:
-                    k = self.rng.choice(list(active_keys))
+                    k = active_keys.choice(self.rng)
                 else:
                     k = self.rng.randint(0, next_new_key + 50)
                 workload_ops.append(("GET", k, ""))
@@ -106,7 +131,7 @@ class WorkloadGenerator:
                 workload_ops.append(("PUT", k, f"val_{k}"))
             else:  # 5% DELETE
                 if active_keys:
-                    k = self.rng.choice(list(active_keys))
+                    k = active_keys.choice(self.rng)
                     active_keys.remove(k)
                     workload_ops.append(("DELETE", k, ""))
                 else:
@@ -127,7 +152,7 @@ class WorkloadGenerator:
         self.rng.shuffle(keys)
         pre_ops = [("PUT", k, f"val_{k}") for k in keys]
 
-        active_keys = set(keys)
+        active_keys = _RandomKeyPool(keys)
         next_new_key = init_count
         workload_ops: List[Tuple[str, int, str]] = []
 
@@ -140,13 +165,13 @@ class WorkloadGenerator:
                 workload_ops.append(("PUT", k, f"val_{k}"))
             elif roll < 0.80:  # 10% GET
                 if active_keys:
-                    k = self.rng.choice(list(active_keys))
+                    k = active_keys.choice(self.rng)
                 else:
                     k = self.rng.randint(0, next_new_key + 20)
                 workload_ops.append(("GET", k, ""))
             else:  # 20% DELETE
                 if active_keys:
-                    k = self.rng.choice(list(active_keys))
+                    k = active_keys.choice(self.rng)
                     active_keys.remove(k)
                     workload_ops.append(("DELETE", k, ""))
                 else:
@@ -167,22 +192,27 @@ class WorkloadGenerator:
         preload_keys = list(range(pool_size))
         pre_ops = [("PUT", k, f"val_{k}") for k in preload_keys]
 
-        ranks = np.arange(1, pool_size + 1, dtype=np.float64)
-        weights = 1.0 / (ranks ** s)
-        weights /= np.sum(weights)
+        if pool_size <= 0:
+            raise ValueError("pool_size must be greater than zero")
 
-        sampled_indices = self.np_rng.choice(pool_size, size=n, p=weights)
+        # Build a cumulative distribution once and sample it with binary search.
+        # This keeps the project dependency-free while preserving deterministic
+        # Zipfian sampling for a fixed seed.
+        cumulative_weights = []
+        total_weight = 0.0
+        for rank in range(1, pool_size + 1):
+            total_weight += 1.0 / (rank ** s)
+            cumulative_weights.append(total_weight)
 
         workload_ops: List[Tuple[str, int, str]] = []
-        for idx in sampled_indices:
-            k = int(idx)
+        for _ in range(n):
+            k = bisect_left(cumulative_weights, self.rng.random() * total_weight)
             roll = self.rng.random()
             if roll < 0.85:  # 85% hot GET
                 workload_ops.append(("GET", k, ""))
             elif roll < 0.95:  # 10% hot PUT / update
                 workload_ops.append(("PUT", k, f"updated_{k}"))
-            else:  # 5% DELETE and re-insert
+            else:  # 5% DELETE; later PUTs may reinsert the key
                 workload_ops.append(("DELETE", k, ""))
-                workload_ops.append(("PUT", k, f"reinserted_{k}"))
 
         return pre_ops, workload_ops

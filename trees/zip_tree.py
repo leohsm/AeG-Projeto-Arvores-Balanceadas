@@ -74,50 +74,45 @@ class ZipTree(KeyValueStore):
             return right
 
     def put(self, key: Any, value: Any) -> None:
-        rank = self._random_rank()
-        inserted = False
-
-        def _insert(node: Optional[ZipNode]) -> ZipNode:
-            nonlocal inserted
-            if node is None:
-                inserted = True
-                return ZipNode(key, value, rank)
-
+        # A candidate with a high random rank may outrank an ancestor before the
+        # insertion walk reaches an equal key.  Resolve updates first so the
+        # existing node keeps its rank and duplicate keys are impossible.
+        existing = self.root
+        while existing is not None:
             self.comparisons += 1
-            if key == node.key:
-                node.value = value
-                return node
+            if key == existing.key:
+                existing.value = value
+                return
+            existing = existing.left if key < existing.key else existing.right
 
-            if key < node.key:
-                # Key is to the left: new node wins tie if rank >= node.rank
-                if rank >= node.rank:
-                    inserted = True
-                    new_node = ZipNode(key, value, rank)
-                    left_sub, right_sub = self._unzip(node, key)
-                    new_node.left = left_sub
-                    new_node.right = right_sub
-                    self.structural_modifications += 1
-                    return new_node
-                else:
-                    node.left = _insert(node.left)
-                    return node
-            else:
-                # Key is to the right: new node wins only if strictly rank > node.rank
-                if rank > node.rank:
-                    inserted = True
-                    new_node = ZipNode(key, value, rank)
-                    left_sub, right_sub = self._unzip(node, key)
-                    new_node.left = left_sub
-                    new_node.right = right_sub
-                    self.structural_modifications += 1
-                    return new_node
-                else:
-                    node.right = _insert(node.right)
-                    return node
+        rank = self._random_rank()
+        parent: Optional[ZipNode] = None
+        curr = self.root
 
-        self.root = _insert(self.root)
-        if inserted:
-            self._size += 1
+        # Follow the search path until the new node outranks the current node.
+        # Existing keys have already been handled above.
+        while curr is not None:
+            self.comparisons += 1
+            if key == curr.key:
+                curr.value = value
+                return
+            outranks = rank > curr.rank or (rank == curr.rank and key < curr.key)
+            if outranks:
+                break
+            parent = curr
+            curr = curr.left if key < curr.key else curr.right
+
+        new_node = ZipNode(key, value, rank)
+        new_node.left, new_node.right = self._unzip(curr, key)
+        if parent is None:
+            self.root = new_node
+        elif key < parent.key:
+            parent.left = new_node
+        else:
+            parent.right = new_node
+
+        self._size += 1
+        self.structural_modifications += 1
 
     def get(self, key: Any) -> Optional[Any]:
         curr = self.root
